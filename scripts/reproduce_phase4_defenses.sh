@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Phase 4 — comparative campaign: {mean, trimmed_mean, krum, geometric_median,
-# trust_weighted} x {worst P3 attack} x {f in 0,1,2}.
+# centered_clipping, trust_weighted} x {worst attack} x {f in 0,1,2}.
 # Produces plot #2 (ppl vs f per defense) and plot #3 (robustness tax at f=0).
+# Set WORST_ATTACK to the strongest attack from Phase 3 — often the omniscient min_max,
+# which is the real separator between defenses.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 python - <<'PY'
@@ -9,9 +11,10 @@ import yaml
 from rodiloco.diloco import run_diloco
 
 base = yaml.safe_load(open("configs/defense_trustweighted.yaml"))
-WORST_ATTACK = "sign_flip"   # set to the worst attack found in Phase 3
+WORST_ATTACK = "sign_flip"   # e.g. "min_max" for the adaptive stress test
 rows = []
-for agg in ["mean", "trimmed_mean", "krum", "geometric_median", "trust_weighted"]:
+for agg in ["mean", "trimmed_mean", "krum", "geometric_median", "centered_clipping",
+            "trust_weighted"]:
     for f in [0, 1, 2]:
         cfg = dict(base)
         cfg.update(aggregator=agg, attack=WORST_ATTACK, n_byzantine=f,

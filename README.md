@@ -40,7 +40,7 @@ Everything is an implementation of `aggregate`:
 
 - **Phase 2** — `mean` (reproduce the DiLoCo baseline)
 - **Phase 3** — attacks are wrappers that corrupt a subset of `deltas` *before* aggregation
-- **Phase 4** — `trimmed_mean`, `krum`, `geometric_median`, `trust_weighted` (defenses)
+- **Phase 4** — `trimmed_mean`, `krum`, `geometric_median`, `centered_clipping`, `trust_weighted` (defenses)
 
 The 8 workers are **simulated sequentially on one GPU**: for each worker `k`, load the
 global params, run `H` inner AdamW steps on its data shard, store the pseudo-gradient
@@ -60,8 +60,8 @@ src/rodiloco/
   data.py          token dataset, i.i.d. + non-i.i.d. sharding
   train.py         single-worker training loop (Phase 1)
   diloco.py        DiLoCo sequential-simulation loop + outer Nesterov (Phase 2)
-  aggregators.py   mean / trimmed_mean / krum / geometric_median / trust_weighted
-  attacks.py       sign_flip / scaled_noise / targeted_drift (Phase 3)
+  aggregators.py   mean / trimmed_mean / krum / geometric_median / centered_clipping / trust_weighted
+  attacks.py       blind: sign_flip / scaled_noise / targeted_drift; omniscient: alie / min_max
   generate.py      autoregressive sampling
   utils.py         seeding, config loading, flat<->unflat param vectors, comm accounting
 configs/           YAML experiment configs (versioned; a run == a config + a seed)

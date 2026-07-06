@@ -1,6 +1,7 @@
 import torch
 
 from rodiloco.aggregators import (
+    CenteredClipping,
     GeometricMedian,
     Krum,
     Mean,
@@ -56,8 +57,30 @@ def test_trust_weighted_reduces_to_mean_when_consistent():
     assert (out - torch.stack(ds).mean(0)).norm() / torch.stack(ds).mean(0).norm() < 0.15
 
 
+def test_centered_clipping_robust_to_outlier():
+    cc = CenteredClipping(tau=1.0, iters=3)
+    ds = honest_deltas()
+    ref = cc(ds)
+    cc2 = CenteredClipping(tau=1.0, iters=3)
+    ds[0] = ds[0] + 500.0  # one wild worker
+    poisoned = cc2(ds)
+    # clipping keeps the outlier from dragging the center far
+    assert (poisoned - ref).norm() < 50.0
+
+
+def test_centered_clipping_center_persists_across_rounds():
+    cc = CenteredClipping()
+    ds = honest_deltas(seed=2)
+    assert cc.center is None
+    cc(ds)
+    assert cc.center is not None  # stateful: carries the center forward
+    cc.reset()
+    assert cc.center is None
+
+
 def test_registry_roundtrip():
-    for name in ["mean", "trimmed_mean", "krum", "geometric_median", "trust_weighted"]:
+    for name in ["mean", "trimmed_mean", "krum", "geometric_median", "centered_clipping",
+                 "trust_weighted"]:
         agg = build_aggregator(name)
         out = agg(honest_deltas())
         assert out.shape == (50,)

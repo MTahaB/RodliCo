@@ -87,10 +87,16 @@ optimizer~\citep{outeroptimizers2025}.
 \paragraph{Byzantine-robust aggregation.}
 The federated-learning literature offers robust replacements for the mean: Krum, which selects
 the update closest to its nearest neighbours~\citep{krum2017}; coordinate-wise trimmed
-mean~\citep{trimmedmean2018}; and the geometric median. These were designed for raw stochastic
+mean~\citep{trimmedmean2018}; the geometric median; and centered
+clipping~\citep{centeredclipping2021}, which clips updates around a running center and is
+notable here because that center behaves like server momentum---a natural, rather than
+awkward, fit for DiLoCo's outer-Nesterov step. These were designed for raw stochastic
 \emph{gradients} at \emph{large} $n$. Recent work even shows the mean can outdo robust
 aggregators under some heterogeneous poisoning~\citep{meanrobust2024}, underscoring that
-transfer to a new regime is not a given.
+transfer to a new regime is not a given. Robustness is further stress-tested by
+\emph{omniscient} attacks that read the honest updates and craft a colluding vector inside
+the honest cloud~\citep{alie2019,minmax2021}, which evade distance- and clustering-based
+defenses by construction.
 
 \paragraph{The gap.}
 DiLoCo's outer step differs from that setting on three axes at once: it aggregates
@@ -118,16 +124,22 @@ ablation).
 
 \paragraph{Threat model.}
 Up to $f$ of $n$ workers are Byzantine and may (a) report a falsified $\dg_k$, or (b) train
-honestly on a corrupted objective. We consider three attacks:
-\emph{sign-flip} ($\dg_k \to -\lambda\dg_k$), \emph{scaled noise} ($\dg_k$ replaced by noise
-calibrated to the honest norm), and \emph{targeted drift} (inner poisoning via label
-permutation, which keeps $\|\dg_k\|$ plausible). The server knows neither which workers are
+honestly on a corrupted objective. We consider two families. \textbf{Blind} attacks tamper
+only with the adversary's own update: \emph{sign-flip} ($\dg_k \to -\lambda\dg_k$),
+\emph{scaled noise} ($\dg_k$ replaced by noise calibrated to the honest norm), and
+\emph{targeted drift} (inner poisoning via label permutation, which keeps $\|\dg_k\|$
+plausible). \textbf{Omniscient} attacks let the colluding adversaries observe the honest
+updates and emit a single crafted vector that maximally biases the aggregate while remaining
+inside the honest cloud: \emph{ALIE}~\citep{alie2019} shifts each coordinate a fraction $z$
+of a standard deviation below the honest mean; the \emph{min-max} agnostic
+attack~\citep{minmax2021} scales a deviation direction to the largest magnitude that keeps the
+malicious point within the honest cloud's diameter. The server knows neither which workers are
 Byzantine nor $f$ exactly.
 
 \paragraph{Defenses.}
 All defenses share one interface, $\texttt{aggregate}(\{\dg_k\}) \to \agg$: mean (baseline),
-trimmed mean, Krum/Multi-Krum, geometric median, and our trust-weighted optimizer
-(\S\ref{sec:defenses}).
+trimmed mean, Krum/Multi-Krum, geometric median, centered clipping, and our trust-weighted
+optimizer (\S\ref{sec:defenses}).
 
 \begin{table}[t]
   \centering
@@ -180,11 +192,14 @@ larger $H$ means larger, rarer $\dg$; report which effect dominates.}
 \section{Defenses: Transfer, Tax, and Trust Weighting}
 \label{sec:defenses}
 
-\subsection{Classical robust aggregators}
-We port trimmed mean, Krum/Multi-Krum, and the geometric median (Weiszfeld) into the outer
-step and evaluate them against the worst Phase-3 attack. Two effects are measured explicitly:
-the interaction between the defense and outer momentum, and the small-$n$ behaviour of Krum
-(at $n=8$, discarding $f{+}2$ candidates is information-expensive).
+\subsection{Classical and modern robust aggregators}
+We port trimmed mean, Krum/Multi-Krum, the geometric median (Weiszfeld), and centered
+clipping~\citep{centeredclipping2021} into the outer step and evaluate them against the worst
+attack---including the omniscient min-max attack, which is built to evade the distance-based
+defenses. Two effects are measured explicitly: the interaction between the defense and outer
+momentum (centered clipping's running center coincides with that momentum, which we expect to
+help), and the small-$n$ behaviour of Krum (at $n=8$, discarding $f{+}2$ candidates is
+information-expensive, and adaptive attacks exploit exactly this).
 
 \subsection{Trust-weighted outer optimizer}
 We score each worker by an EMA of the cosine similarity between its pseudo-gradient and the
@@ -196,7 +211,9 @@ and aggregate with weights $\mathrm{softmax}(s/\tau)$. Unlike Krum it weights ra
 excludes, retaining information, and it exploits the temporal dimension that the outer setting
 (few rounds, rich $\dg$) makes informative. By design, at $f=0$ all workers stay consistent,
 weights approach uniform, and the method reduces to the mean---the ``zero tax'' property we
-test directly.
+test directly. We ablate $\beta$, $\tau$, and update normalisation, reporting both the
+perplexity under attack and the tax at $f=0$ for each setting. \todo{report best
+$(\beta,\tau)$ and confirm the near-zero tax.}
 
 \begin{figure}[t]
   \centering
@@ -221,11 +238,12 @@ test directly.
     \toprule
     Aggregator & $f{=}0$ & $f{=}1$ & $f{=}2$ \\
     \midrule
-    Mean            & \todo{} & \todo{} & \todo{} \\
-    Trimmed mean    & \todo{} & \todo{} & \todo{} \\
-    Krum            & \todo{} & \todo{} & \todo{} \\
-    Geometric median& \todo{} & \todo{} & \todo{} \\
-    Trust-weighted  & \todo{} & \todo{} & \todo{} \\
+    Mean             & \todo{} & \todo{} & \todo{} \\
+    Trimmed mean     & \todo{} & \todo{} & \todo{} \\
+    Krum             & \todo{} & \todo{} & \todo{} \\
+    Geometric median & \todo{} & \todo{} & \todo{} \\
+    Centered clipping& \todo{} & \todo{} & \todo{} \\
+    Trust-weighted   & \todo{} & \todo{} & \todo{} \\
     \bottomrule
   \end{tabular}
 \end{table}

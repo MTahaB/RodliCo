@@ -53,6 +53,32 @@ def test_poison_targets_is_a_permutation():
     assert not torch.equal(py, y)  # permutation should move labels
 
 
+def test_alie_shifts_mean_and_is_omniscient():
+    ds = deltas()
+    spec = AttackSpec(name="alie", n_byzantine=2, z=1.5)
+    assert spec.is_omniscient
+    good = Mean()(ds)
+    corrupted = apply_delta_attack(spec, ds, [0, 1])
+    attacked = Mean()(corrupted)
+    # the two colluding malicious deltas are identical and bias the aggregate
+    assert torch.equal(corrupted[0], corrupted[1])
+    assert (attacked - good).norm() > 0
+
+
+def test_min_max_stays_inside_honest_cloud():
+    ds = deltas(n=8)
+    byz = [0, 1]
+    honest = torch.stack([ds[i] for i in range(8) if i not in byz])
+    spec = AttackSpec(name="min_max", n_byzantine=2)
+    corrupted = apply_delta_attack(spec, ds, byz)
+    mal = corrupted[0]
+    # evasion property: malicious point is no farther from any honest update than the
+    # honest cloud's own diameter (so distance/clustering defenses see nothing anomalous)
+    diameter = torch.cdist(honest, honest).max()
+    worst = (mal[None, :] - honest).norm(dim=1).max()
+    assert worst <= diameter * 1.05  # small numerical slack from the binary search
+
+
 def test_choose_byzantine_count_and_range():
     idx = choose_byzantine(8, 3, seed=0)
     assert len(idx) == 3 and len(set(idx)) == 3

@@ -112,6 +112,43 @@ class GeometricMedian:
         return y
 
 
+class CenteredClipping:
+    """Centered clipping (Karimireddy et al., 2021) — a modern, momentum-aware defense.
+
+    Iteratively clips each Δ around a running center ``v`` that persists across outer rounds
+    (the center acts like server momentum, which is why this defense is a natural fit for
+    DiLoCo's outer-Nesterov regime rather than an awkward transplant):
+
+        v <- v + (1/n) Σ_i (Δ_i - v) · min(1, r / ||Δ_i - v||)
+
+    repeated ``iters`` times. The clip radius ``r`` is set scale-adaptively to
+    ``tau · median_i ||Δ_i - v||`` so ``tau`` stays O(1) across model/LR scales.
+    """
+
+    stateful = True
+
+    def __init__(self, tau: float = 1.0, iters: int = 3, eps: float = 1e-8):
+        self.tau = tau
+        self.iters = iters
+        self.eps = eps
+        self.center: Tensor | None = None
+
+    def reset(self) -> None:
+        self.center = None
+
+    def __call__(self, deltas: list[Tensor]) -> Tensor:
+        x = _stack(deltas)  # (n, D)
+        v = self.center if self.center is not None else x.mean(dim=0)
+        for _ in range(self.iters):
+            diff = x - v  # (n, D)
+            norms = diff.norm(dim=1, keepdim=True).clamp_min(self.eps)  # (n, 1)
+            radius = self.tau * norms.median().clamp_min(self.eps)
+            scale = torch.clamp(radius / norms, max=1.0)  # (n, 1)
+            v = v + (diff * scale).mean(dim=0)
+        self.center = v.detach().clone()
+        return v
+
+
 # --- Phase 4: the contribution ------------------------------------------------
 class TrustWeighted:
     """Trust-weighted outer aggregation (the proposed contribution).
@@ -171,6 +208,7 @@ _REGISTRY: dict[str, type] = {
     "trimmed_mean": TrimmedMean,
     "krum": Krum,
     "geometric_median": GeometricMedian,
+    "centered_clipping": CenteredClipping,
     "trust_weighted": TrustWeighted,
 }
 

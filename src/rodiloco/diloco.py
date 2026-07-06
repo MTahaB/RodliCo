@@ -97,6 +97,7 @@ def run_diloco(cfg: dict, device: torch.device | None = None) -> dict:
         n_byzantine=cfg.get("n_byzantine", 0),
         lam=cfg.get("attack_lam", 1.0),
         sigma_mult=cfg.get("attack_sigma_mult", 1.0),
+        z=cfg.get("attack_z", 1.5),
     )
     byz_idx = choose_byzantine(n_workers, attack.n_byzantine, cfg["seed"])
     agg_kwargs = dict(cfg.get("aggregator_kwargs", {}))

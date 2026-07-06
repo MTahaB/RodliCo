@@ -23,6 +23,14 @@ raw **gradients** at **large n** (classification-scale FL), not pseudo-gradients
 momentum / n≈8 / LLM pretraining.
 - Krum, coordinate-wise trimmed mean, geometric median — the classical robust aggregators
   RoDiLoCo ports and tests for transfer.
+- Centered clipping ([Karimireddy et al., ICML 2021](https://proceedings.mlr.press/v139/karimireddy21a.html))
+  — a modern, momentum-aware defense; its running center coincides with DiLoCo's outer
+  momentum, making it a natural (not awkward) transplant. Included as a fifth baseline.
+- Omniscient adaptive attacks — ALIE ([Baruch et al., NeurIPS 2019](https://arxiv.org/abs/1902.06156))
+  and the min-max agnostic attack ([Shejwalkar & Houmansadr, NDSS 2021](https://www.ndss-symposium.org/ndss-paper/manipulating-the-byzantine-optimizing-model-poisoning-attacks-and-defenses-for-federated-learning/))
+  — craft a colluding vector inside the honest cloud to evade distance/clustering defenses.
+  These are the stress test that separates a real defense from one that only survives crude
+  attacks; RoDiLoCo evaluates every aggregator against them.
 - "Mean Aggregator is More Robust than Robust Aggregators under Label Poisoning" — why the
   transfer question is non-trivial. [JMLR 2024](https://arxiv.org/html/2404.13647v2)
 - Delayed Momentum Aggregation (DeMoA) — Byz-robust + comm-efficient + momentum, but

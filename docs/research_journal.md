@@ -47,6 +47,28 @@ fill the `\todo{}`s → drop PDF figures into `paper/figures/` → uncomment `\i
 
 ---
 
+## 2026-07-06 — extended the science
+
+Broadened the attack/defense space beyond the crude baselines:
+
+- **Centered clipping** aggregator (`centered_clipping`) — Karimireddy et al. 2021; iterative
+  clipping around a running center that persists across rounds (momentum-aware). Fifth
+  baseline; a natural fit for the outer-Nesterov step.
+- **Omniscient adaptive attacks** — `alie` (Baruch et al. 2019) and `min_max`
+  (Shejwalkar & Houmansadr 2021). The colluding adversaries read the honest Δ's and emit one
+  crafted vector inside the honest cloud (min_max verified to stay within the honest
+  diameter). These evade distance/clustering defenses by construction.
+- **Trust-weighted ablation harness** (`scripts/ablate_trust.py`) — sweeps β × τ × normalize,
+  reporting perplexity-under-attack and the f=0 tax; writes a ranked CSV.
+
+Smoke observation (trivial corpus, tiny scale — illustrative, not a result): under min_max at
+f=2/8, **Krum underperforms the naive mean** (ppl 1.33 vs 1.04), while centered_clipping and
+trust_weighted match the mean. This is the expected small-n Krum + adaptive-attack story; the
+real-data runs will quantify it. Ablation confirmed the near-zero tax (+0.02) at smoke scale.
+
+Tests now 27/27. Paper updated (background, threat model, defenses, results table) and
+recompiles clean with the three new citations.
+
 ## Template for future entries
 
 ```
