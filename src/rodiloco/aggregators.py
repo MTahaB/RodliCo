@@ -164,14 +164,23 @@ class TrustWeighted:
 
     Design intent — "zero tax": at f=0 all workers stay consistent, scores converge, and
     softmax weights approach uniform ⇒ it should reduce to the plain mean.
+
+    Cold-start: the trust score needs a *reference* aggregate to compare against, and on the
+    very first round there is no history. Seeding that reference with the plain mean is a
+    trap — under a strong attack the round-0 mean is already poisoned, so the trust signal is
+    corrupted from birth and never recovers (empirically, this is what made the method fail at
+    f=2). We instead seed from a robust aggregate (geometric median), which gives the trust
+    dynamics an uncorrupted starting point.
     """
 
     stateful = True
 
-    def __init__(self, beta: float = 0.9, tau: float = 0.1, normalize: bool = True):
+    def __init__(self, beta: float = 0.9, tau: float = 0.1, normalize: bool = True,
+                 bootstrap: str = "geometric_median"):
         self.beta = beta
         self.tau = tau
         self.normalize = normalize
+        self._boot = GeometricMedian() if bootstrap == "geometric_median" else TrimmedMean(trim=1)
         self.scores: Tensor | None = None
         self.prev_agg: Tensor | None = None
 
@@ -186,8 +195,9 @@ class TrustWeighted:
             self.scores = torch.zeros(n, device=x.device)
 
         if self.prev_agg is None:
-            # first round: no history yet, fall back to mean
-            agg = x.mean(dim=0)
+            # first round: no history yet, seed the reference from a robust aggregate so the
+            # trust signal is not poisoned by a corrupted round-0 mean.
+            agg = self._boot(deltas)
         else:
             ref = self.prev_agg
             cos = torch.nn.functional.cosine_similarity(x, ref[None, :].expand_as(x), dim=1)

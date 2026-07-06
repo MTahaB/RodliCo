@@ -41,8 +41,9 @@ def fragility(pattern: str, dst: str) -> None:
         pts.sort()
         xs, ys = zip(*pts, strict=True)
         plt.plot(xs, ys, marker="o", label=attack)
+    plt.yscale("log")  # the mean diverges by orders of magnitude; log keeps both readable
     plt.xlabel("byzantine workers f (of 8)")
-    plt.ylabel("final validation perplexity")
+    plt.ylabel("final validation perplexity (log)")
     plt.title("Fragility of vanilla DiLoCo (mean aggregation)")
     plt.legend()
     _save(dst)
@@ -61,8 +62,9 @@ def defense(pattern: str, dst: str) -> None:
         pts.sort()
         xs, ys = zip(*pts, strict=True)
         plt.plot(xs, ys, marker="o", label=agg)
+    plt.yscale("log")  # mean diverges; robust aggregators stay low — log shows both
     plt.xlabel("byzantine workers f (of 8)")
-    plt.ylabel("final validation perplexity")
+    plt.ylabel("final validation perplexity (log)")
     plt.title("Defense transfer under the worst attack")
     plt.legend()
     _save(dst)
