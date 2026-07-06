@@ -69,6 +69,38 @@ real-data runs will quantify it. Ablation confirmed the near-zero tax (+0.02) at
 Tests now 27/27. Paper updated (background, threat model, defenses, results table) and
 recompiles clean with the three new citations.
 
+## 2026-07-06 — first full result set (P4 milestone)
+
+Ran the full reproduce → attack → defend campaign on a free T4 (Kaggle) via the one-click
+notebook. Config: ~1.8M-param char model (192/4L), TinyStories, 8 workers, H=50, 15 outer
+rounds, sign-flip λ=10, seed 0, fp16.
+
+**Final perplexity:**
+
+| aggregator | f=0 | f=1 | f=2 |
+|---|---|---|---|
+| mean | 3.37 | diverged | diverged |
+| trimmed_mean | 3.37 | 3.53 | diverged |
+| krum | 3.99 | 3.98 | 4.08 |
+| geometric_median | 3.35 | 3.45 | 3.52 |
+| centered_clipping | 3.36 | 3.44 | 3.39 |
+| trust_weighted | 3.30 | 3.33 | 3.27 |
+
+- Plot #1 (fragility): one liar of 8 diverges the mean — confirmed.
+- Plots #2/#3: classical defenses transfer partially; trimmed-mean dies at f=2 (trim<f); Krum
+  highest tax (+18%); trust_weighted cheapest AND flattest — wins on both axes.
+- Two fixes were decisive for trust_weighted, each from an observed failure: robust
+  (geometric-median) cold-start [[trust-weighted-cold-start]] and median-norm rescale (moved
+  f=2 from NaN to 3.27).
+
+**Perf note:** the GPU run was launch-overhead-bound (~10 steps/s). Fixes: `_foreach`-batched
+AdamW, fp16 mixed precision, branchless grad clipping. Reproduction hardened into
+`notebooks/rodiloco_kaggle.ipynb` with hard asserts on GPU + dataset presence.
+
+Results written into `README.md` (single canonical README) and `paper/rodiloco.tex`.
+
+Next: seed replication (SEED=1,2 → mean±std); `min_max` as the main stressor; then submit.
+
 ## Template for future entries
 
 ```

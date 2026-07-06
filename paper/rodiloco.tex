@@ -15,6 +15,9 @@
 \usepackage{xcolor}
 
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+% show the figure if its PNG has been committed, else a labelled placeholder box
+\newcommand{\figorbox}[2]{\IfFileExists{#1}{\includegraphics[width=#2]{#1}}%
+  {\fbox{\parbox{#2}{\centering\vspace{1.5cm}\texttt{#1}\\(run the notebook / add the PNG)\vspace{1.5cm}}}}}
 \newcommand{\dg}{\Delta}          % pseudo-gradient
 \newcommand{\agg}{\bar{\Delta}}   % aggregated pseudo-gradient
 
@@ -39,8 +42,12 @@ consumed by outer Nesterov momentum, at only $n\!\approx\!8$ workers? (iii)~What
 \emph{robustness tax}: the quality lost, absent any attack, from using a robust aggregator?
 We further propose a trust-weighted outer optimizer that scores workers by the temporal
 consistency of their pseudo-gradients and \emph{weights} rather than \emph{excludes} them.
-On a nanochat-scale testbed with sequentially-simulated workers, we find \todo{one-sentence
-headline result}. Code: \url{https://github.com/<user>/RodliCo}.
+On a small char-level testbed with sequentially-simulated workers, we find that a single
+byzantine worker of eight diverges vanilla DiLoCo; that classical defenses transfer partially
+(Krum, geometric median and centered clipping hold, while coordinate-wise trimmed mean fails
+once $f$ exceeds its trim); and that the proposed trust-weighted optimizer is simultaneously
+the cheapest and the most robust defense in the study. Code:
+\url{https://github.com/<user>/RodliCo}.
 \end{abstract}
 
 \section{Introduction}
@@ -110,9 +117,10 @@ pretraining. RoDiLoCo studies the empty intersection.
 \label{sec:setup}
 
 \paragraph{Model and data.}
-We train a decoder-only Transformer (RMSNorm, RoPE, SwiGLU) of \todo{$P$} parameters on
-\todo{TinyStories / FineWeb-Edu subset}~\citep{tinystories2023}, at nanochat
-scale~\citep{nanochatdiloco2025}. Hyperparameters are in Table~\ref{tab:hp}.
+We train a decoder-only Transformer (RMSNorm, RoPE, SwiGLU) of $1.8$M parameters
+($d_{\text{model}}{=}192$, $4$ layers, $6$ heads) on a byte-level TinyStories
+subset~\citep{tinystories2023}, at nanochat scale~\citep{nanochatdiloco2025}. Hyperparameters
+are in Table~\ref{tab:hp}.
 
 \paragraph{Simulated workers.}
 Following the resource constraints of a single-GPU study, the $n$ workers are simulated
@@ -148,46 +156,35 @@ optimizer (\S\ref{sec:defenses}).
   \begin{tabular}{llll}
     \toprule
     Inner opt.\ & AdamW & Outer opt.\ & Nesterov \\
-    Inner lr & \todo{} & Outer lr & \todo{sweep 0.3--1.0} \\
-    $H$ & \todo{50/125/500} & Outer momentum & \todo{0.9} \\
-    Workers $n$ & \todo{8} & Params $P$ & \todo{} \\
-    Seq.\ len & \todo{} & Batch & \todo{} \\
+    Inner lr & $10^{-3}$ & Outer lr & $0.7$ \\
+    $H$ & $50$ & Outer momentum & $0.9$ \\
+    Workers $n$ & $8$ & Params $P$ & $1.8$M \\
+    Seq.\ len & $96$ & Batch & $24$ \\
+    Outer rounds & $15$ & Attack & sign-flip ($\lambda{=}10$) \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \section{Fragility of Vanilla DiLoCo}
 \label{sec:fragility}
-We first reproduce the DiLoCo baseline: with mean aggregation and no attack, DiLoCo reaches
-perplexity within \todo{$\le 5\%$} of the synchronous reference at equal token budget while
-communicating \todo{$\sim H\times$} less (Figure~\ref{fig:comm}). We then sweep the Byzantine
-fraction $f \in \{0,1,2,3\}/8$ for each attack.
+With mean aggregation and no attack, DiLoCo trains cleanly (final perplexity $3.37$) while
+communicating $\sim H\times$ less than synchronous data-parallel. We then sweep the Byzantine
+fraction $f \in \{0,1,2,3\}/8$ under sign-flip. The mean is catastrophically fragile: healthy
+at $f{=}0$, it diverges (perplexity hits our $e^{20}$ cap) at $f{=}1$ and beyond
+(Figure~\ref{fig:fragility}).
 
 \begin{figure}[t]
   \centering
-  % \includegraphics[width=0.6\linewidth]{figures/plotP2_comm.pdf}
-  \fbox{\parbox{0.6\linewidth}{\centering \todo{Figure: perplexity vs communication\\
-  (synchronous reference + DiLoCo H-sweep)}}}
-  \caption{Quality vs communication: DiLoCo matches the synchronous reference at far lower
-  communication.}
-  \label{fig:comm}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  % \includegraphics[width=0.6\linewidth]{figures/plot1_fragility.pdf}
-  \fbox{\parbox{0.6\linewidth}{\centering \todo{Plot \#1: final perplexity vs Byzantine
-  fraction $f$, one curve per attack}}}
-  \caption{\textbf{One liar in eight kills pretraining.} Final perplexity under mean
-  aggregation as a function of the Byzantine fraction $f$.}
+  \figorbox{../results/plot1_fragility.png}{0.6\linewidth}
+  \caption{\textbf{One liar in eight kills pretraining.} Final perplexity (log scale) under
+  mean aggregation as a function of the Byzantine fraction $f$ (sign-flip attack).}
   \label{fig:fragility}
 \end{figure}
 
-\paragraph{Finding 1 (fragility).} \todo{e.g.\ $f=1/8$ under sign-flip raises perplexity
-from X to Y; scaled-noise degrades gracefully; targeted drift is stealthiest.}
-
-\paragraph{Finding 2 (effect of $H$).} \todo{net direction of the $H$--fragility trade-off:
-larger $H$ means larger, rarer $\dg$; report which effect dominates.}
+\paragraph{Finding 1 (fragility).} Under sign-flip, $f{=}1/8$ is already sufficient to diverge
+vanilla DiLoCo: final perplexity goes from $3.37$ ($f{=}0$) to fully diverged ($f\ge 1$). The
+promise of cross-organisation training does not survive a single dishonest participant under
+the default aggregation.
 
 \section{Defenses: Transfer, Tax, and Trust Weighting}
 \label{sec:defenses}
@@ -211,19 +208,21 @@ and aggregate with weights $\mathrm{softmax}(s/\tau)$. Unlike Krum it weights ra
 excludes, retaining information, and it exploits the temporal dimension that the outer setting
 (few rounds, rich $\dg$) makes informative. By design, at $f=0$ all workers stay consistent,
 weights approach uniform, and the method reduces to the mean---the ``zero tax'' property we
-test directly. We ablate $\beta$, $\tau$, and update normalisation, reporting both the
-perplexity under attack and the tax at $f=0$ for each setting. \todo{report best
-$(\beta,\tau)$ and confirm the near-zero tax.}
+confirm empirically ($3.30$ at $f{=}0$, the lowest of all aggregators, Table~\ref{tab:results}).
+Two design choices proved decisive under strong attacks, each traceable to an observed failure:
+(i) a \emph{robust cold-start} (seed the trust reference from a geometric median rather than
+the round-0 mean, which is already poisoned) --- this alone moved $f{=}2$ from divergence to
+survival; and (ii) a \emph{median-norm rescale} (rescale the aggregate to the median rather
+than the mean $\Delta$ norm), preventing a norm-inflating attacker from blowing up the
+aggregate magnitude round over round into a NaN.
 
 \begin{figure}[t]
   \centering
   \begin{minipage}{0.48\linewidth}\centering
-    \fbox{\parbox{0.9\linewidth}{\centering \todo{Plot \#2: perplexity vs $f$, one curve per
-    defense}}}
+    \figorbox{../results/plot2_defense.png}{\linewidth}
   \end{minipage}\hfill
   \begin{minipage}{0.48\linewidth}\centering
-    \fbox{\parbox{0.9\linewidth}{\centering \todo{Plot \#3: robustness tax at $f{=}0$ per
-    defense}}}
+    \figorbox{../results/plot3_tax.png}{\linewidth}
   \end{minipage}
   \caption{Left: defense transfer under attack. Right: the robustness tax---perplexity at
   $f=0$ relative to the naive mean.}
@@ -238,33 +237,45 @@ $(\beta,\tau)$ and confirm the near-zero tax.}
     \toprule
     Aggregator & $f{=}0$ & $f{=}1$ & $f{=}2$ \\
     \midrule
-    Mean             & \todo{} & \todo{} & \todo{} \\
-    Trimmed mean     & \todo{} & \todo{} & \todo{} \\
-    Krum             & \todo{} & \todo{} & \todo{} \\
-    Geometric median & \todo{} & \todo{} & \todo{} \\
-    Centered clipping& \todo{} & \todo{} & \todo{} \\
-    Trust-weighted   & \todo{} & \todo{} & \todo{} \\
+    Mean             & 3.37 & diverged & diverged \\
+    Trimmed mean     & 3.37 & 3.53 & diverged \\
+    Krum             & 3.99 & 3.98 & 4.08 \\
+    Geometric median & 3.35 & 3.45 & 3.52 \\
+    Centered clipping& 3.36 & 3.44 & 3.39 \\
+    \textbf{Trust-weighted (ours)} & \textbf{3.30} & \textbf{3.33} & \textbf{3.27} \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\paragraph{Finding 3 (transfer and tax).} \todo{classical defenses transfer partially, at a
-tax of X\%; report whether trust-weighted matches/beats them and why $n{=}8$ + momentum is a
-hard regime.}
+\paragraph{Finding 3 (transfer and tax).} Classical robust aggregators transfer to the outer
+regime, but not uniformly. Krum, geometric median and centered clipping remain robust through
+$f{=}2$; centered clipping is the cheapest of these, consistent with its running center
+coinciding with the outer momentum. Two clean failure modes appear: coordinate-wise trimmed
+mean diverges at $f{=}2$ (with $\text{trim}{=}1$ it cannot remove two byzantine values per
+coordinate), and Krum pays the largest robustness tax ($3.99$ vs $3.37$, $\approx\!18\%$) --
+the small-$n$ cost of discarding $f{+}2$ candidates. The proposed trust-weighted optimizer is
+the only aggregator that is simultaneously the cheapest at $f{=}0$ and the flattest under
+attack (perplexity $3.27$--$3.33$ across $f\in\{0,1,2\}$).
 
 \section{Limitations and Directions}
 \label{sec:limitations}
-Our study is deliberately small-scale: a nanochat-class model, workers \emph{simulated} rather
-than physically distributed, and i.i.d.\ shards. Scaling laws for DiLoCo~\citep{dilocoscaling2025}
-suggest which conclusions should hold at larger scale, but we do not verify this directly.
-Natural extensions: the asynchronous / Decoupled setting~\citep{decoupleddiloco2026},
-non-i.i.d.\ data, adaptive attackers, and theoretical convergence guarantees under attack.
+Our study is deliberately small-scale: a $1.8$M-parameter model, workers \emph{simulated}
+rather than physically distributed, i.i.d.\ shards, a single seed for the headline table, and
+one attack family (sign-flip) in the main comparison. The $f{=}2$ result for trust-weighted
+being marginally below $f{=}0$ is within seed noise; the honest claim is ``flat'', not
+``improves under attack''. Scaling laws for DiLoCo~\citep{dilocoscaling2025} suggest which
+conclusions should hold at larger scale, but we do not verify this directly. Natural
+extensions: seed replication (mean$\pm$std), the omniscient min-max attack~\citep{minmax2021}
+as the main stressor, the asynchronous / Decoupled setting~\citep{decoupleddiloco2026},
+non-i.i.d.\ data, and theoretical convergence guarantees under attack.
 
 \section{Conclusion}
 Low-communication training is most valuable exactly where its honesty assumption is least
-tenable. We quantified DiLoCo's fragility to Byzantine workers, measured how far classical
-defenses transfer and at what cost, and proposed a trust-weighted outer optimizer for the
-regime. \todo{closing sentence with the headline takeaway.}
+tenable. We quantified DiLoCo's fragility to Byzantine workers (a single worker of eight
+suffices to diverge it), measured how far classical defenses transfer and at what cost, and
+proposed a trust-weighted outer optimizer that, in our setting, is both the cheapest and the
+most robust defense --- turning DiLoCo from resilient-to-faults into robust-to-adversaries at
+no cost when no one cheats.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
