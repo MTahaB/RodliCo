@@ -206,8 +206,13 @@ class TrustWeighted:
             src = torch.nn.functional.normalize(x, dim=1) if self.normalize else x
             agg = (w[:, None] * src).sum(dim=0)
             if self.normalize:
-                # rescale back to the mean magnitude so outer LR stays comparable
-                agg = agg / agg.norm().clamp_min(1e-8) * x.norm(dim=1).mean()
+                # Rescale to a *robust* target magnitude. Using the mean norm was a bug: under
+                # a norm-inflating attack (e.g. sign-flip with λ≫1) the byzantine deltas blow
+                # up the mean, so the aggregate magnitude grows every round until it diverges
+                # (NaN at f=2). The median norm ignores those outliers and keeps the outer
+                # step at the honest scale.
+                target_norm = x.norm(dim=1).median()
+                agg = agg / agg.norm().clamp_min(1e-8) * target_norm
 
         self.prev_agg = agg.detach().clone()
         return agg
